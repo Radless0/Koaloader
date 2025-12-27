@@ -1,33 +1,53 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/acidicoala/Koaloader/refs/tags/v3.0.4/res/Koaloader.schema.json",
   "title": "Koaloader Configuration Schema",
   "type": "object",
+  "additionalProperties": false,
   "properties": {
     "$schema": {
       "type": "string",
-      "description": "The JSON schema URI describing this file."
+      "description": "The JSON schema URI describing this file.",
+      "x-default": "[Koaloader.schema.json](res/Koaloader.schema.json)",
+      "x-valid-values": "URL to a valid Koaloader config JSON schema."
+    },
+    "$version": {
+      "type": "integer",
+      "description": "Reserved for use by tools like GUI config editors.",
+      "const": 1,
+      "x-valid-values": "Integer numbers from 1 and beyond."
     },
     "logging": {
       "type": "boolean",
-      "description": "Enables or disables logging into a Koaloader.log file. Possible values: true, false (default)."
+      "default": false,
+      "description": "Enables or disables logging into a Koaloader.log file.",
+      "x-packaged-default": true,
+      "x-valid-values": "`true` or `false`."
     },
     "enabled": {
       "type": "boolean",
-      "description": "Entirely enables or disables Koaloader injection. Can be used to quickly disable Koaloader without modifying files on disk. Possible values: true (default), false."
+      "default": true,
+      "description": "Entirely enables or disables Koaloader injection. Can be used to quickly disable Koaloader without modifying files on disk.",
+      "x-valid-values": "`true` or `false`."
     },
     "auto_load": {
       "type": "boolean",
-      "description": "Enables or disables automatic loading of well-known DLLs. When enabled, Koaloader will try to find well-known DLLs in parent directories or recursively in the search directories. Default: true."
+      "default": true,
+      "description": "Enables or disables automatic loading of well-known DLLs. When enabled, Koaloader will try to find well-known DLLs in parent directories or recursively in the search directories.",
+      "x-valid-values": "`true` or `false`."
     },
     "targets": {
       "type": "array",
+      "default": [],
       "description": "A list of strings that specify targeted executables. Koaloader will inject modules if the list is empty or includes the executable.",
       "items": {
         "type": "string"
-      }
+      },
+      "x-valid-values": "An array of executable file names."
     },
     "modules": {
       "type": "array",
+      "default": [],
       "description": "A list of objects that describe modules that will be loaded in the order they were defined.",
       "items": {
         "type": "object",
@@ -42,13 +62,24 @@
           }
         },
         "additionalProperties": false
-      }
+      },
+      "x-valid-values": "An list of objects to inject."
+    },
+    "hide_files": {
+      "type": "array",
+      "default": [],
+      "description": "A list of strings that specify files that the target process should not see.",
+      "items": {
+        "type": "string"
+      },
+      "x-valid-values": "A list of string file names to hide."
     }
   },
   "additionalProperties": false,
   "examples": [
     {
       "$schema": "https://raw.githubusercontent.com/acidicoala/Koaloader/refs/tags/v3.0.4/res/Koaloader.schema.json",
+      "$version": 1,
       "logging": true,
       "enabled": true,
       "auto_load": false,
@@ -65,6 +96,10 @@
           "path": "C:/users/acidicoala/eucalyptus.dll",
           "required": false
         }
+      ],
+      "hide_files": [
+        "version.dll",
+        "target,dll"
       ]
     }
   ]

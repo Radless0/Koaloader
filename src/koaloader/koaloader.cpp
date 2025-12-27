@@ -5,13 +5,17 @@
 #include <koalabox/lib.hpp>
 #include <koalabox/logger.hpp>
 #include <koalabox/path.hpp>
+#include <koalabox/platform.hpp>
 #include <koalabox/str.hpp>
 #include <koalabox/util.hpp>
-#include <koalabox/win.hpp>
 
 #include "build_config.h"
 
 #include "koaloader/koaloader.hpp"
+#include "win_api/file_api.hpp"
+
+namespace kb = koalabox;
+namespace fs = std::filesystem;
 
 namespace {
     namespace kb = koalabox;
@@ -26,12 +30,12 @@ namespace {
             return true;
         }
 
-        static const auto executable_path = koalabox::win::get_module_path(nullptr);
+        static const auto executable_path = kb::lib::get_fs_path(nullptr);
         static const auto executable_name = kb::path::to_str(executable_path.filename());
 
         bool target_found = false;
         for(const auto& target : koaloader::config.targets) {
-            if(koalabox::str::eq(target, executable_name)) {
+            if(kb::str::eq(target, executable_name)) {
                 LOG_DEBUG("Target found: '{}'", target);
                 target_found = true;
                 break;
@@ -46,6 +50,7 @@ namespace {
             "Unlocker",
             "Lyptus",
             "ScreamAPI",
+            "scream_api",
             "SmokeAPI",
             "smoke_api",
             "UplayR1Unlocker",
@@ -59,7 +64,7 @@ namespace {
 
         for(const auto& name : well_known_names) {
             well_known_modules.insert(name + ".dll");
-            well_known_modules.insert(std::format("{}{}.dll", name, kb::util::BITNESS));
+            well_known_modules.insert(std::format("{}{}.dll", name, kb::platform::bitness));
         }
 
         return well_known_modules;
@@ -67,7 +72,7 @@ namespace {
 
     void inject_module(const fs::path& path, const bool required) {
         try {
-            kb::lib::load_library_or_throw(path);
+            kb::lib::load_or_throw(path);
 
             LOG_INFO(R"(Loaded module: "{}")", path.string());
 
@@ -80,7 +85,7 @@ namespace {
             );
 
             if(required) {
-                koalabox::util::panic(message);
+                kb::util::panic(message);
             }
         }
     }
@@ -103,7 +108,7 @@ namespace {
     }
 
     ControlOperation process_file(const std::filesystem::directory_entry& entry) {
-        LOG_TRACE(R"(Processing file: "{}")", entry.path().string());
+        LOG_TRACE(R"(Processing file: "{}")", kb::path::to_str(entry.path()));
 
         // Skip directories
         if(entry.is_directory()) {
@@ -118,7 +123,7 @@ namespace {
         }
 
         // Skip non-DLLs
-        if(not koalabox::str::eq(path.extension().string(), ".dll")) {
+        if(not kb::str::eq(path.extension().string(), ".dll")) {
             return ControlOperation::CONTINUE_OP;
         }
 
@@ -127,7 +132,7 @@ namespace {
         const static auto well_known_modules = generate_well_known_modules();
 
         for(const auto& dll : well_known_modules) {
-            if(koalabox::str::eq(filename, dll)) {
+            if(kb::str::eq(filename, dll)) {
                 inject_module(path, true);
 
                 return ControlOperation::RETURN_OP;
@@ -153,7 +158,6 @@ namespace {
             auto current = starting_directory;
             fs::path previous;
             do {
-
                 for(const auto& entry : fs::directory_iterator(current, dir_options)) {
                     PROCESS_CONTROL_OPERATION(process_file(entry))
                 }
@@ -182,7 +186,7 @@ namespace {
                     }
 
                     if(not loaded) {
-                        koalabox::util::panic(
+                        kb::util::panic(
                             std::format(
                                 "Error loading module with relative path. Search locations:\n{}\n{}",
                                 kb::path::to_str(absolute(path)),
@@ -203,26 +207,26 @@ namespace koaloader {
         try {
             kb::globals::init_globals(self_module, PROJECT_NAME);
 
-            self_directory = kb::win::get_module_path(self_module).parent_path();
+            self_directory = kb::lib::get_fs_path(self_module).parent_path();
 
             config = kb::config::parse<Config>();
 
             if(config.logging) {
-                koalabox::logger::init_file_logger(kb::paths::get_log_path());
+                kb::logger::init_file_logger(kb::paths::get_log_path());
             }
 
             LOG_INFO("{} v{}{} | Built at '{}'", PROJECT_NAME, PROJECT_VERSION, VERSION_SUFFIX, __TIMESTAMP__);
             LOG_DEBUG("Parsed config:\n{}", nlohmann::ordered_json(config).dump(2));
 
-            const auto exe_path = koalabox::win::get_module_path(nullptr);
+            const auto exe_path = kb::lib::get_fs_path(nullptr);
 
             LOG_DEBUG(
-                R"(Executable path: "{}" [{}-bit])",
+                R"(Executable path:     "{}" [{}-bit])",
                 kb::path::to_str(exe_path),
-                kb::util::BITNESS
+                kb::platform::bitness
             );
             LOG_DEBUG(
-                R"(Current working directory: "{}")",
+                R"(Current working dir: "{}")",
                 kb::path::to_str(std::filesystem::current_path())
             );
             LOG_DEBUG(R"(Koaloader directory: "{}")", kb::path::to_str(self_directory));
@@ -241,9 +245,11 @@ namespace koaloader {
                 LOG_DEBUG("Koaloader is not enabled in config");
             }
 
+            file_api::hide_files();
+
             LOG_INFO("Initialization complete");
         } catch(const std::exception& e) {
-            koalabox::util::panic(std::format("Initialization error: {}", e.what()));
+            kb::util::panic(std::format("Initialization error: {}", e.what()));
         }
     }
 

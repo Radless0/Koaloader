@@ -1,0 +1,25 @@
+{
+  "$schema": "./KoalaBox/res/sync.schema.json",
+  "variables": {
+    "config_filename": "Koaloader.config.json"
+  },
+  "tasks": [
+    {
+      "type": "text",
+      "template_file": "./KoalaBox/templates/.clang-tidy"
+    },
+    {
+      "type": "text",
+      "template_file": "./KoalaBox/templates/.gitattributes"
+    },
+    {
+      "type": "text",
+      "template_file": "./KoalaBox/templates/UNLICENSE.txt"
+    },
+    {
+      "type": "json",
+      "schema_file": "./res/Koaloader.schema.json",
+      "destination_file": "./res/{{ config_filename }}"
+    }
+  ]
+}

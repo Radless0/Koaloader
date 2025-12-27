@@ -1,8 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/acidicoala/Koaloader/refs/tags/v3.0.4/res/Koaloader.schema.json",
+  "$version": 1,
   "logging": true,
   "enabled": true,
   "auto_load": true,
   "targets": [],
-  "modules": []
+  "modules": [],
+  "hide_files": []
 }

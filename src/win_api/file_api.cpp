@@ -63,6 +63,7 @@ HANDLE WINAPI $FindFirstFileW(
         );
 
         if(hiding) {
+            SetLastError(ERROR_NO_MORE_FILES); // Is this necessary?
             continue;
         }
 
@@ -110,6 +111,7 @@ HANDLE WINAPI $FindFirstFileExW(
         );
 
         if(hiding) {
+            SetLastError(ERROR_NO_MORE_FILES); // Is this necessary?
             continue;
         }
 
@@ -136,6 +138,7 @@ BOOL WINAPI $FindNextFileW(
             );
 
             if(hiding) {
+                SetLastError(ERROR_NO_MORE_FILES); // Is this necessary?
                 continue;
             }
         }
@@ -167,6 +170,7 @@ DWORD WINAPI $GetFileAttributesA(
     LOG_DEBUG("{} -> file_name: \"{}\", hiding: {}", __func__, file_name, hiding);
 
     if(hiding) {
+        SetLastError(ERROR_FILE_NOT_FOUND);
         return INVALID_FILE_ATTRIBUTES;
     }
 
@@ -186,6 +190,7 @@ DWORD WINAPI $GetFileAttributesW(
     LOG_DEBUG("{} -> file_name: \"{}\", hiding: {}", __func__, file_name, hiding);
 
     if(hiding) {
+        SetLastError(ERROR_FILE_NOT_FOUND);
         return INVALID_FILE_ATTRIBUTES;
     }
 
@@ -208,6 +213,7 @@ BOOL WINAPI $GetFileAttributesExA(
 
     if(hiding) {
         *lpFileInformation = WIN32_FILE_ATTRIBUTE_DATA{};
+        SetLastError(ERROR_FILE_NOT_FOUND);
         return FALSE;
     }
 
@@ -219,6 +225,7 @@ BOOL WINAPI $GetFileAttributesExA(
 
     return result;
 }
+
 BOOL WINAPI $GetFileAttributesExW(
     const LPCWSTR lpFileName,
     const GET_FILEEX_INFO_LEVELS fInfoLevelId,
@@ -231,6 +238,7 @@ BOOL WINAPI $GetFileAttributesExW(
 
     if(hiding) {
         *lpFileInformation = WIN32_FILE_ATTRIBUTE_DATA{};
+        SetLastError(ERROR_FILE_NOT_FOUND);
         return FALSE;
     }
 
@@ -260,6 +268,7 @@ HANDLE WINAPI $CreateFileA(
     LOG_DEBUG("{} -> file_name: \"{}\", hiding: {}", __func__, file_name, hiding);
 
     if(hiding) {
+        SetLastError(ERROR_FILE_NOT_FOUND);
         return INVALID_HANDLE_VALUE;
     }
 
@@ -293,6 +302,7 @@ HANDLE WINAPI $CreateFileW(
     LOG_DEBUG("{} -> file_name: \"{}\", hiding: {}", __func__, file_name, hiding);
 
     if(hiding) {
+        SetLastError(ERROR_FILE_NOT_FOUND);
         return INVALID_HANDLE_VALUE;
     }
 

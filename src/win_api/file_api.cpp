@@ -1,4 +1,4 @@
-#include <set>
+#include <regex>
 
 #include <koalabox/config.hpp>
 #include <koalabox/hook.hpp>
@@ -7,11 +7,11 @@
 #include <koalabox/str.hpp>
 
 #include "file_api.hpp"
+
 #include "koaloader/koaloader.hpp"
 
 namespace {
     namespace kb = koalabox;
-    namespace fs = std::filesystem;
 
     /**
      * @return map where key is file handle, and value is the initial search string
@@ -21,35 +21,15 @@ namespace {
         return handles;
     }
 
-    std::string normalize_path(const fs::path& abs_path) {
-        const auto canonical_path_wstr = fs::weakly_canonical(abs_path).wstring();
-        const auto canonical_path_str = kb::str::to_str(canonical_path_wstr);
-        return kb::str::to_lower(canonical_path_str);
-    }
-
-    std::set<std::string>& get_hidden_files() {
-        static std::set<std::string> hidden_files;
-
-        static std::once_flag once_flag;
-        std::call_once(
-            once_flag, [] {
-                for(const auto& extra_file : koaloader::config.hide_files) {
-                    const auto abs_path = fs::absolute(extra_file);
-                    const auto path_str = normalize_path(abs_path);
-                    hidden_files.insert(path_str);
-                }
+    bool is_file_hidden(const std::string& filename) {
+        for(const auto& pattern : koaloader::config.hide_files) {
+            // TODO: Cache regex patterns
+            if(std::regex_search(filename, std::regex(pattern, std::regex_constants::icase))) {
+                return true;
             }
-        );
+        }
 
-        return hidden_files;
-    }
-
-    bool should_file_be_hidden(const HANDLE file_handle, const WIN32_FIND_DATAW* file) {
-        const auto base_path = get_tracked_file_handles()[file_handle];
-        const auto path = kb::path::from_str(base_path) / file->cFileName;
-        const auto normalized_path_str = normalize_path(path);
-
-        return get_hidden_files().contains(normalized_path_str);
+        return false;
     }
 }
 
@@ -71,10 +51,10 @@ HANDLE WINAPI $FindFirstFileW(
         }
         get_tracked_file_handles()[handle] = base_path;
 
-        const auto hiding = should_file_be_hidden(handle, lpFindFileData);
+        const auto hiding = is_file_hidden(kb::str::to_str(lpFindFileData->cFileName));
 
         LOG_DEBUG(
-            "{} -> query: {}, handle: {}, filename: \"{}\", hiding: {}",
+            R"({} -> query: "{}", handle: {}, filename: "{}", hiding: {})",
             __func__,
             kb::str::to_str(lpFileName),
             reinterpret_cast<uintptr_t>(handle),
@@ -118,7 +98,7 @@ HANDLE WINAPI $FindFirstFileExW(
         }
         get_tracked_file_handles()[handle] = base_path;
 
-        const auto hiding = should_file_be_hidden(handle, lpFindFileData);
+        const auto hiding = is_file_hidden(kb::str::to_str(lpFindFileData->cFileName));
 
         LOG_DEBUG(
             "{} -> query: {}, handle: {}, filename: \"{}\", hiding: {}",
@@ -145,7 +125,7 @@ BOOL WINAPI $FindNextFileW(
         const auto success = ORIGINAL(FindNextFileW)(hFindFile, lpFindFileData);
 
         if(success && get_tracked_file_handles().contains(hFindFile)) {
-            const auto hiding = should_file_be_hidden(hFindFile, lpFindFileData);
+            const auto hiding = is_file_hidden(kb::str::to_str(lpFindFileData->cFileName));
 
             LOG_DEBUG(
                 "{} -> handle: {}, filename: \"{}\", hiding: {}",
@@ -178,27 +158,153 @@ BOOL WINAPI $FindClose(const HANDLE hFindFile) {
     return result;
 }
 
+DWORD WINAPI $GetFileAttributesA(
+    _In_ LPCSTR lpFileName
+) {
+    const auto file_name = std::string(lpFileName);
+    const auto hiding = is_file_hidden(file_name);
+
+    LOG_DEBUG("{} -> file_name: \"{}\", hiding: {}", __func__, file_name, hiding);
+
+    if(hiding) {
+        return INVALID_FILE_ATTRIBUTES;
+    }
+
+    const auto result = ORIGINAL(GetFileAttributesA)(
+        lpFileName
+    );
+
+    return result;
+}
+
+DWORD WINAPI $GetFileAttributesW(
+    _In_ LPCWSTR lpFileName
+) {
+    const auto file_name = kb::str::to_str(lpFileName);
+    const auto hiding = is_file_hidden(file_name);
+
+    LOG_DEBUG("{} -> file_name: \"{}\", hiding: {}", __func__, file_name, hiding);
+
+    if(hiding) {
+        return INVALID_FILE_ATTRIBUTES;
+    }
+
+    const auto result = ORIGINAL(GetFileAttributesW)(
+        lpFileName
+    );
+
+    return result;
+}
+
+BOOL WINAPI $GetFileAttributesExA(
+    const LPCSTR lpFileName,
+    const GET_FILEEX_INFO_LEVELS fInfoLevelId,
+    WIN32_FILE_ATTRIBUTE_DATA* lpFileInformation
+) {
+    const auto file_name = std::string(lpFileName);
+    const auto hiding = is_file_hidden(file_name);
+
+    LOG_DEBUG("{} -> file_name: \"{}\", hiding: {}", __func__, file_name, hiding);
+
+    if(hiding) {
+        *lpFileInformation = WIN32_FILE_ATTRIBUTE_DATA{};
+        return FALSE;
+    }
+
+    const auto result = ORIGINAL(GetFileAttributesExA)(
+        lpFileName,
+        fInfoLevelId,
+        lpFileInformation
+    );
+
+    return result;
+}
 BOOL WINAPI $GetFileAttributesExW(
     const LPCWSTR lpFileName,
     const GET_FILEEX_INFO_LEVELS fInfoLevelId,
     WIN32_FILE_ATTRIBUTE_DATA* lpFileInformation
 ) {
+    const auto file_name = kb::str::to_str(lpFileName);
+    const auto hiding = is_file_hidden(file_name);
+
+    LOG_DEBUG("{} -> file_name: \"{}\", hiding: {}", __func__, file_name, hiding);
+
+    if(hiding) {
+        *lpFileInformation = WIN32_FILE_ATTRIBUTE_DATA{};
+        return FALSE;
+    }
+
     const auto result = ORIGINAL(GetFileAttributesExW)(
         lpFileName,
         fInfoLevelId,
         lpFileInformation
     );
 
+    return result;
+}
+
+HANDLE WINAPI $CreateFileA(
+    _In_ LPCSTR lpFileName,
+    _In_ DWORD dwDesiredAccess,
+    _In_ DWORD dwShareMode,
+    _In_opt_ LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+    _In_ DWORD dwCreationDisposition,
+    _In_ DWORD dwFlagsAndAttributes,
+    _In_opt_ HANDLE hTemplateFile
+) {
+    // TODO: More robust checks
+
+    const auto file_name = std::string(lpFileName);
+    const auto hiding = is_file_hidden(file_name);
+
+    LOG_DEBUG("{} -> file_name: \"{}\", hiding: {}", __func__, file_name, hiding);
+
+    if(hiding) {
+        return INVALID_HANDLE_VALUE;
+    }
+
+    const auto result = ORIGINAL(CreateFileA)(
+        lpFileName,
+        dwDesiredAccess,
+        dwShareMode,
+        lpSecurityAttributes,
+        dwCreationDisposition,
+        dwFlagsAndAttributes,
+        hTemplateFile
+    );
+
+    return result;
+}
+
+HANDLE WINAPI $CreateFileW(
+    _In_ LPCWSTR lpFileName,
+    _In_ DWORD dwDesiredAccess,
+    _In_ DWORD dwShareMode,
+    _In_opt_ LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+    _In_ DWORD dwCreationDisposition,
+    _In_ DWORD dwFlagsAndAttributes,
+    _In_opt_ HANDLE hTemplateFile
+) {
     // TODO: More robust checks
 
     const auto file_name = kb::str::to_str(lpFileName);
-    const auto hiding = koaloader::config.hide_files.contains(file_name);
+    const auto hiding = is_file_hidden(file_name);
 
-    LOG_DEBUG("{} -> file_name: {}, hiding: {}", __func__, file_name, hiding);
+    LOG_DEBUG("{} -> file_name: \"{}\", hiding: {}", __func__, file_name, hiding);
 
     if(hiding) {
-        return FALSE;
+        return INVALID_HANDLE_VALUE;
     }
+
+    auto* const result = ORIGINAL(CreateFileW)(
+        lpFileName,
+        dwDesiredAccess,
+        dwShareMode,
+        lpSecurityAttributes,
+        dwCreationDisposition,
+        dwFlagsAndAttributes,
+        hTemplateFile
+    );
 
     return result;
 }
@@ -216,7 +322,12 @@ namespace file_api {
         KL_HOOK(FindFirstFileExW);
         KL_HOOK(FindNextFileW);
         KL_HOOK(FindClose);
+        KL_HOOK(GetFileAttributesA);
+        KL_HOOK(GetFileAttributesW);
+        KL_HOOK(GetFileAttributesExA);
         KL_HOOK(GetFileAttributesExW);
+        KL_HOOK(CreateFileA);
+        KL_HOOK(CreateFileW);
 
         LOG_INFO("File hider initialized");
     }

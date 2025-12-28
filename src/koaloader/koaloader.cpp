@@ -12,10 +12,9 @@
 #include "build_config.h"
 
 #include "koaloader/koaloader.hpp"
-#include "win_api/file_api.hpp"
 
-namespace kb = koalabox;
-namespace fs = std::filesystem;
+#include "patcher/patcher.hpp"
+#include "win_api/file_api.hpp"
 
 namespace {
     namespace kb = koalabox;
@@ -246,6 +245,8 @@ namespace koaloader {
             }
 
             file_api::hide_files();
+
+            patcher::patch_strings();
 
             LOG_INFO("Initialization complete");
         } catch(const std::exception& e) {

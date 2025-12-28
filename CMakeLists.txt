@@ -20,6 +20,8 @@ set(
     KOALOADER_SOURCES
     src/koaloader/koaloader.cpp
     src/koaloader/koaloader.hpp
+    src/patcher/patcher.cpp
+    src/patcher/patcher.hpp
     src/win_api/file_api.cpp
     src/win_api/file_api.hpp
     src/main.cpp

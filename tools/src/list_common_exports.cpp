@@ -2,6 +2,10 @@
 #include <ranges>
 #include <regex>
 #include <set>
+#include <vector>
+#include <string>
+#include <map>
+#include <filesystem>
 
 #include <glob/glob.h>
 

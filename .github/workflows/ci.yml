@@ -12,6 +12,7 @@ jobs:
       config: Release
       modules: >-
         [
+          "userenv",
           "audioses",
           "d3d9",
           "d3d10",

@@ -36,7 +36,12 @@ namespace {
 
             for(const auto& lib_path : glob_paths) {
                 const auto lib_handle = kb::lib::load_library_or_throw(lib_path);
-                for(const auto& symbol : kb::lib::get_export_map(lib_handle) | std::views::keys) {
+
+                // Avoid streaming views over the export map which MSVC's ranges implementation
+                // may not accept for this container. Materialize the export map into a local
+                // variable and iterate using structured bindings.
+                const auto export_map = kb::lib::get_export_map(lib_handle);
+                for(const auto& [symbol, _] : export_map) {
                     auto& lib_set = result[symbol];
                     lib_set.insert(lib_path);
                 }
@@ -49,7 +54,7 @@ namespace {
     void print_common_exports(const symbol_to_lib_path_t& symbol_to_lib_path_map) {
         for(const auto& [symbol_name, lib_path_set] : symbol_to_lib_path_map) {
             if(lib_path_set.empty()) {
-                LOG_ERROR("Invalid state: empty lib path set for symbol '{}'", symbol_name);
+                LOG_ERROR("Invalid state: empty lib path set for symbol '{}':", symbol_name);
                 DebugBreak();
                 continue;
             }

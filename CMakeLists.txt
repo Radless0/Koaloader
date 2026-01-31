@@ -7,6 +7,7 @@ include(KoalaBox/cmake/KoalaBox.cmake)
 add_subdirectory(KoalaBox)
 add_subdirectory(tools)
 add_subdirectory(test)
+add_subdirectory()
 
 # Get module variable
 SET(MODULE "" CACHE STRING "Some user-specified option")
